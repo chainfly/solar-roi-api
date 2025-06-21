@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solar ROI Calculator</title>
+    <style>
+        body {
+            font-family: Arial;
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+        }
+        .result {
+            background: #f0f0f0;
+            padding: 15px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h2>☀️ Solar RoI & Payback Calculator</h2>
+    <form id="roiForm">
+        <label>Capex (₹):</label>
+        <input type="number" name="capex" required><br>
+
+        <label>Opex (₹/year):</label>
+        <input type="number" name="opex" required><br>
+
+        <label>Generation (kWh/year):</label>
+        <input type="number" name="generation" required><br>
+
+        <label>Tariff (₹/kWh):</label>
+        <input type="number" step="0.01" name="tariff" required><br>
+
+        <label>Lifetime (years):</label>
+        <input type="number" name="lifetime" placeholder="Default 25"><br>
+
+        <button type="submit">Calculate</button>
+    </form>
+
+    <div class="result" id="output" style="display:none;"></div>
+
+    <script>
+        document.getElementById('roiForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const form = e.target;
+            const data = {
+                capex: parseFloat(form.capex.value),
+                opex: parseFloat(form.opex.value),
+                generation: parseFloat(form.generation.value),
+                tariff: parseFloat(form.tariff.value),
+            };
+
+            if (form.lifetime.value) {
+                data.lifetime = parseInt(form.lifetime.value);
+            }
+
+            const res = await fetch('/roi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await res.json();
+
+            const output = document.getElementById('output');
+            if (res.ok) {
+                output.innerHTML = `
+                    <h3>📊 Results:</h3>
+                    <p><strong>Annual Profit:</strong> ₹${result.annual_profit}</p>
+                    <p><strong>Payback Period:</strong> ${result.payback_period_years} years</p>
+                    <p><strong>ROI:</strong> ${result.roi_percent}%</p>
+                    <p><strong>Total Profit:</strong> ₹${result.total_profit}</p>
+                `;
+            } else {
+                output.innerHTML = `<p style="color:red;"><strong>Error:</strong> ${result.error}</p>`;
+            }
+            output.style.display = 'block';
+        });
+    </script>
+</body>
+</html>
