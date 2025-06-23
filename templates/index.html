@@ -39,6 +39,21 @@
         <label>Lifetime (years):</label>
         <input type="number" name="lifetime" placeholder="Default 25"><br>
 
+        <label>Inflation Rate (%):</label>
+        <input type="number" step="0.01" name="inflation_rate" placeholder="Default 2.2"><br>
+
+        <label>Discount Rate (%):</label>
+        <input type="number" step="0.01" name="discount_rate" placeholder="Default 4.0"><br>
+
+        <label>Efficiency Drift (% per year):</label>
+        <input type="number" step="0.01" name="efficiency_drift" placeholder="Default 0.5"><br>
+
+        <label>One-time Incentive (₹):</label>
+        <input type="number" name="one_time_incentive" placeholder="Optional"><br>
+
+        <label>Feed-in Tariff Bonus (₹/kWh):</label>
+        <input type="number" step="0.01" name="feed_in_tariff_bonus" placeholder="Optional"><br>
+
         <button type="submit">Calculate</button>
     </form>
 
@@ -56,9 +71,12 @@
                 tariff: parseFloat(form.tariff.value),
             };
 
-            if (form.lifetime.value) {
-                data.lifetime = parseInt(form.lifetime.value);
-            }
+            if (form.lifetime.value) data.lifetime = parseInt(form.lifetime.value);
+            if (form.inflation_rate.value) data.inflation_rate = parseFloat(form.inflation_rate.value) / 100;
+            if (form.discount_rate.value) data.discount_rate = parseFloat(form.discount_rate.value) / 100;
+            if (form.efficiency_drift.value) data.efficiency_drift = parseFloat(form.efficiency_drift.value) / 100;
+            if (form.one_time_incentive.value) data.one_time_incentive = parseFloat(form.one_time_incentive.value);
+            if (form.feed_in_tariff_bonus.value) data.feed_in_tariff_bonus = parseFloat(form.feed_in_tariff_bonus.value);
 
             const res = await fetch('/roi', {
                 method: 'POST',
@@ -67,15 +85,15 @@
             });
 
             const result = await res.json();
-
             const output = document.getElementById('output');
+
             if (res.ok) {
                 output.innerHTML = `
                     <h3>📊 Results:</h3>
-                    <p><strong>Annual Profit:</strong> ₹${result.annual_profit}</p>
                     <p><strong>Payback Period:</strong> ${result.payback_period_years} years</p>
                     <p><strong>ROI:</strong> ${result.roi_percent}%</p>
                     <p><strong>Total Profit:</strong> ₹${result.total_profit}</p>
+                    <p><strong>Year-wise Annual Savings:</strong> ₹${result.annual_savings.join(', ')}</p>
                 `;
             } else {
                 output.innerHTML = `<p style="color:red;"><strong>Error:</strong> ${result.error}</p>`;
@@ -85,3 +103,4 @@
     </script>
 </body>
 </html>
+

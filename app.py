@@ -42,20 +42,39 @@ def calculate_roi():
               description: Tariff (₹/kWh)
             lifetime:
               type: integer
-              example: 20
+              example: 25
               description: Lifetime of the plant (years)
+            inflation_rate:
+              type: number
+              example: 0.022
+              description: Annual inflation rate (default 2.2%)
+            discount_rate:
+              type: number
+              example: 0.04
+              description: Discount rate for present value (default 4%)
+            efficiency_drift:
+              type: number
+              example: 0.005
+              description: Annual panel degradation rate (default 0.5%)
+            one_time_incentive:
+              type: number
+              example: 10000
+              description: One-time government incentive/subsidy (₹)
+            feed_in_tariff_bonus:
+              type: number
+              example: 0.5
+              description: ₹/kWh bonus if selling power to grid (optional)
     responses:
       200:
         description: ROI and Payback Period calculated successfully
         examples:
-          application/json: {
-            "annual_profit": 43000.0,
-            "payback_period_years": 4.65,
-            "roi_percent": 330.0,
-            "total_profit": 660000.0
-          }
-
+          application/json:
+            annual_savings: [43000.0, 42785.0, 42571.0]
+            payback_period_years: 4.65
+            roi_percent: 330.0
+            total_profit: 660000.0
     """
+
     try:
         data = request.json
 
@@ -63,23 +82,58 @@ def calculate_roi():
         opex = float(data['opex'])
         generation = float(data['generation'])
         tariff = float(data['tariff'])
+
+        # Optional parameters with defaults
         lifetime = int(data.get('lifetime', 25))
+        inflation_rate = float(data.get('inflation_rate', 0.022))
+        discount_rate = float(data.get('discount_rate', 0.04))
+        efficiency_drift = float(data.get('efficiency_drift', 0.005))
+        one_time_incentive = float(data.get('one_time_incentive', 0))
+        feed_in_tariff_bonus = float(data.get('feed_in_tariff_bonus', 0))
 
-        annual_revenue = generation * tariff
-        annual_profit = annual_revenue - opex
+        annual_savings = []
+        utility_costs = []
+        cumulative_savings = []
 
-        if annual_profit <= 0:
-            return jsonify({"error": "Annual profit is zero or negative. Please check your inputs."}), 400
+        current_generation = generation
+        total_discounted_savings = 0
+        cumulative = 0
+        payback_year = None
 
-        payback_period = capex / annual_profit
-        roi = ((annual_profit * lifetime - capex) / capex) * 100
-        total_profit = annual_profit * lifetime - capex
+        for year in range(1, lifetime + 1):
+            degraded_gen = current_generation * (1 - efficiency_drift) ** (year - 1)
+            effective_tariff = tariff + feed_in_tariff_bonus
+            annual_revenue = degraded_gen * effective_tariff
+            annual_profit = annual_revenue - opex
+            inflated_utility_cost = tariff * degraded_gen * ((1 + inflation_rate) ** (year - 1))
+
+            discounted_profit = annual_profit / ((1 + discount_rate) ** year)
+            total_discounted_savings += discounted_profit
+            cumulative += annual_profit
+
+            annual_savings.append(round(annual_profit, 2))
+            utility_costs.append(round(inflated_utility_cost, 2))
+            cumulative_savings.append(round(cumulative, 2))
+
+            if not payback_year and cumulative >= capex - one_time_incentive:
+                payback_year = year
+
+        net_profit = cumulative - capex + one_time_incentive
+        roi_percent = (net_profit / capex) * 100
 
         return jsonify({
-            "annual_profit": round(annual_profit, 2),
-            "payback_period_years": round(payback_period, 2),
-            "roi_percent": round(roi, 2),
-            "total_profit": round(total_profit, 2)
+            "capex": capex,
+            "opex": opex,
+            "lifetime": lifetime,
+            "inflation_rate": inflation_rate,
+            "discount_rate": discount_rate,
+            "efficiency_drift": efficiency_drift,
+            "annual_savings": annual_savings,
+            "utility_costs": utility_costs,
+            "cumulative_savings": cumulative_savings,
+            "payback_period_years": payback_year if payback_year else "Not achieved",
+            "roi_percent": round(roi_percent, 2),
+            "total_profit": round(net_profit, 2)
         })
 
     except KeyError as e:
@@ -87,8 +141,10 @@ def calculate_roi():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 import os
 
 if __name__ == '__main__':
+    
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
